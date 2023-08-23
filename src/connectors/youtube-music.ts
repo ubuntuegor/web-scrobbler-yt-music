@@ -6,6 +6,9 @@ export {};
  * https://music.youtube.com/playlist?list=OLAK5uy_kDEvxPASaVnoSjOZViKEn4S3iVaueN0UI
  * Multiple artists
  *
+ * https://music.youtube.com/watch?v=NBNMC8SkWTQ
+ * Artist with no links
+ *
  * https://music.youtube.com/playlist?list=OLAK5uy_k-OR_rCdS5UNV22eIhAOWLMZbbxa20muQ
  * Auto-generated YouTube video (and generic track on YouTube Music)
  *
@@ -22,16 +25,8 @@ export {};
 
 const trackArtSelector = '.ytmusic-player-bar.image';
 
-const artistSelectors = [
-	// Base selector, combining both new and old
-	'.ytmusic-player-bar.byline [href*="channel/"]:not([href*="channel/MPREb_"]):not([href*="browse/MPREb_"])',
+const artistLineSelector = '.ytmusic-player-bar.byline';
 
-	// Old selector for self-uploaded music
-	'.ytmusic-player-bar.byline [href*="feed/music_library_privately_owned_artist_detaila_"]',
-
-	// New selector for self-uploaded music
-	'.ytmusic-player-bar.byline [href*="browse/FEmusic_library_privately_owned_artist_detaila_"]',
-];
 const albumSelectors = [
 	// Old base selector, leaving in case removing it would break something
 	'.ytmusic-player-bar [href*="channel/MPREb_"]',
@@ -115,9 +110,24 @@ Connector.getUniqueID = () => {
 Connector.isScrobblingAllowed = () => !Util.isElementVisible(adSelector);
 
 function getArtists() {
-	// FIXME Use Array.from after jQuery support will be removed
-	const artistElements = Util.queryElements(artistSelectors);
-	return artistElements && Util.joinArtists([...artistElements]);
+	let result = '';
+	const byline = document.querySelector(artistLineSelector);
+
+	if (!byline) {
+		return null;
+	}
+
+	for (const part of byline.children) {
+		const elem = part as HTMLElement;
+
+		if (elem.innerText === ' • ') {
+			break;
+		}
+
+		result += elem.innerText;
+	}
+
+	return result;
 }
 
 function filterYoutubeIfNonAlbum(text: string) {
