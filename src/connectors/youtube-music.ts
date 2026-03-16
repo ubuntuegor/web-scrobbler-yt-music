@@ -20,62 +20,58 @@ export {};
  * Uploaded songs have different artist and track selectors
  */
 
-const adSelector = '.ytmusic-player-bar.advertisement';
-
-const mediaInfo = {
-	playbackState: 'none',
-	metadata: {
-		title: '',
-		artist: '',
-		artwork: [{ src: '' }],
-		album: '',
-	},
-};
-
-Connector.onScriptEvent = (event) => {
-	mediaInfo.playbackState = event.data.playbackState as string;
-	mediaInfo.metadata = event.data.metadata as {
-		title: string;
-		artist: string;
-		artwork: { src: string; size: string; type: string }[];
-		album: string;
-	};
-};
-
 Connector.playerSelector = 'ytmusic-player-bar';
+
+Connector.getTrackArt = () => {
+	const trackArtUrl = Util.extractImageUrlFromSelectors(
+		'.ytmusic-player-bar.image',
+	);
+	if (trackArtUrl) {
+		return trackArtUrl.substring(0, trackArtUrl.lastIndexOf('='));
+	}
+	return null;
+};
 
 Connector.isTrackArtDefault = (url) => {
 	// Self-uploaded tracks could not have cover arts
 	return Boolean(url?.includes('cover_track_default'));
 };
 
-Connector.getAlbum = () => mediaInfo.metadata?.album;
+Connector.trackSelector =
+	'.content-info-wrapper.ytmusic-player-bar .title.ytmusic-player-bar';
 
-Connector.getTrackArt = () => {
-	const artworks = mediaInfo.metadata?.artwork;
-	return artworks?.[artworks.length - 1].src;
-};
+Connector.getArtist = () => getAlbumAndArtist().artist;
 
-Connector.getArtistTrack = () => {
-	let artist;
-	let track;
-	const metadata = mediaInfo.metadata;
+Connector.getAlbum = () => getAlbumAndArtist().album;
 
-	if (metadata?.album) {
-		artist = metadata.artist;
-		track = metadata.title;
-	} else {
-		({ artist, track } = Util.processYtVideoTitle(metadata?.title));
-		if (!artist) {
-			artist = metadata?.artist;
-		}
+function getAlbumAndArtist() {
+	const byline = Util.getAttrFromSelectors(
+		'.content-info-wrapper.ytmusic-player-bar .byline.ytmusic-player-bar',
+		'title',
+	);
+
+	if (!byline) {
+		return { album: null, artist: null };
 	}
-	return { artist, track };
-};
+
+	const parts = byline.split(' • ');
+
+	const artist = parts[0];
+	const album =
+		parts.length > 1 && !isRegularVideoPlaying() ? parts[1] : null;
+
+	return { album, artist };
+}
+
+function isRegularVideoPlaying() {
+	return !document.querySelector(
+		'.content-info-wrapper.ytmusic-player-bar .byline.ytmusic-player-bar a[href*="browse/"]',
+	);
+}
 
 Connector.timeInfoSelector = '.ytmusic-player-bar.time-info';
 
-Connector.isPlaying = () => mediaInfo.playbackState === 'playing';
+Connector.isPlaying = () => navigator.mediaSession.playbackState === 'playing';
 
 Connector.loveButtonSelector =
 	'ytmusic-like-button-renderer #button-shape-like button[aria-pressed="false"]';
@@ -95,21 +91,4 @@ Connector.getUniqueID = () => {
 };
 
 Connector.scrobblingDisallowedReason = () =>
-	Util.isElementVisible(adSelector) ? 'IsAd' : null;
-
-function filterYoutubeIfNonAlbum(text: string) {
-	return Connector.getAlbum() ? text : MetadataFilter.youtube(text);
-}
-
-const youtubeMusicFilter = MetadataFilter.createFilter({
-	track: [
-		filterYoutubeIfNonAlbum,
-		MetadataFilter.removeRemastered,
-		MetadataFilter.removeLive,
-	],
-	album: [MetadataFilter.removeRemastered, MetadataFilter.removeLive],
-});
-
-Connector.applyFilter(youtubeMusicFilter);
-
-Connector.injectScript('connectors/youtube-music-dom-inject.js');
+	document.querySelector('.ytmusic-player-bar.advertisement') ? 'IsAd' : null;
